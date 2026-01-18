@@ -40,7 +40,13 @@ This will start both the backend API on port 8081 and the frontend on port 3002.
 
 ## Frontend
 
-A modern React/TypeScript frontend is available in the `frontend/` directory.
+A modern React/TypeScript frontend is available in the `frontend/` directory. It is a complete single-page application featuring:
+
+- Contract Analysis page: Input contract address and view risk analysis results
+- RAG Search page: Perform semantic searches on indexed documents
+- Responsive UI with Tailwind CSS
+- API integration via Axios
+- Client-side routing with React Router
 
 To run the frontend locally (development):
 ```bash
@@ -52,7 +58,7 @@ npm run dev
 
 The frontend will be available at `http://localhost:5173` and connects to the API at `http://localhost:8080`.
 
-In production (via Docker), it's served on port 3002.
+In production (via Docker), it's served on port 3002 as a microservice, containerized with Nginx for static asset serving and SPA routing.
 
 Admin keys & API keys
 - Set `ADMIN_API_KEY` env var for admin operations (creating user keys).
