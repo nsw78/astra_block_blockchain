@@ -1,75 +1,171 @@
-# AstraBlock — Mini toolkit LLM para Blockchain & Cripto (exemplo)
+# AstraBlock
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://reactjs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [English](README.md) | [Español](README.es.md)
 
-Este repositório é um scaffold em Python que demonstra um ambiente mínimo para construir ferramentas LLM focadas em criptomoedas e smart contracts:
+AstraBlock é um kit de ferramentas LLM mínimo para análise de blockchain e criptomoedas, construído como um scaffold educacional. Ele fornece ferramentas para avaliação de risco de contratos inteligentes e buscas de Geração Aumentada por Recuperação (RAG) em documentos indexados.
 
-- Analisador de contratos (heurísticas simples)
-- Indexador de embeddings (RAG) com `sentence-transformers` + `faiss`
-- API mínima usando FastAPI para expor análise e buscas RAG
+> **⚠️ Aviso:** Este é um projeto educacional. Não use os resultados para decisões financeiras sem validação profissional.
 
-Riscos e notas:
-- Este projeto é um ponto de partida educacional. Não use os resultados para decisões financeiras sem validação humana.
+## Índice
 
-Requisitos
-- Python 3.10+
-- Recomenda-se criar um ambiente virtual
+- [Recursos](#recursos)
+- [Arquitetura](#arquitetura)
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação](#instalação)
+- [Uso](#uso)
+- [Endpoints da API](#endpoints-da-api)
+- [Desenvolvimento](#desenvolvimento)
+- [Contribuição](#contribuição)
+- [Licença](#licença)
 
-Instalação rápida
-```bash
-cd /home/nelsons_walcow/Documentos/Projects/AstraBlock
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# Preencha .env com suas chaves (Etherscan/INFURA/OPENAI)
+## Recursos
+
+- **Analisador de Contratos**: Avaliação de risco baseada em heurísticas simples para contratos inteligentes Ethereum
+- **Indexador de Embeddings**: Implementação de RAG usando Sentence Transformers e FAISS para busca semântica
+- **API REST**: Backend baseado em FastAPI com autenticação e verificações de saúde
+- **Frontend Moderno**: SPA React/TypeScript com interfaces de análise de contratos e busca RAG
+- **Suporte ao Docker**: Arquitetura de microsserviços com Docker Compose para implantação fácil
+- **CI/CD**: Workflow do GitHub Actions para testes automatizados
+
+## Arquitetura
+
+O projeto segue uma arquitetura de microsserviços:
+
+- **Backend (Python/FastAPI)**: Lida com solicitações de API, análise de contratos e operações RAG
+- **Frontend (React/TypeScript)**: Interface do usuário para interagir com as ferramentas de análise
+- **Banco de Dados/Índice**: Índice vetorial FAISS para embeddings (em memória para demonstração)
+
+```
+┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend       │
+│   (React/TS)    │◄──►│   (FastAPI)     │
+│   Porta 3002    │    │   Porta 8081    │
+└─────────────────┘    └─────────────────┘
+         │                       │
+         └───────────────────────┘
+                 Docker Compose
 ```
 
-Rodando a API
+## Pré-requisitos
+
+- Python 3.10 ou superior
+- Node.js 18+ (para desenvolvimento do frontend)
+- Docker e Docker Compose
+- Chaves de API para Etherscan, INFURA e OpenAI (opcional para funcionalidade completa)
+
+## Instalação
+
+### Desenvolvimento Local
+
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/yourusername/astrablock.git
+   cd astrablock
+   ```
+
+2. Configure o ambiente Python:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # No Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. Configure variáveis de ambiente:
+   ```bash
+   cp .env.example .env
+   # Edite .env com suas chaves de API
+   ```
+
+4. Configure o frontend (opcional):
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env
+   ```
+
+### Implantação com Docker
+
+```bash
+docker-compose up --build
+```
+
+Isso inicia o backend na porta 8081 e o frontend na porta 3002.
+
+## Uso
+
+### Executando o Backend
+
 ```bash
 source .venv/bin/activate
 uvicorn app.main:app --reload --port 8080
 ```
 
-Docker (para produção rápida)
-```bash
-docker-compose up --build
-```
+Acesse a documentação da API em `http://localhost:8080/docs`
 
-Isso iniciará tanto a API backend na porta 8081 quanto o frontend na porta 3002.
+### Executando o Frontend
 
-## Frontend
-
-Um frontend moderno em React/TypeScript está disponível no diretório `frontend/`. É uma aplicação completa de página única com recursos como:
-
-- Página de Análise de Contratos: Insira o endereço do contrato e visualize os resultados de análise de risco
-- Página de Busca RAG: Realize buscas semânticas em documentos indexados
-- Interface responsiva com Tailwind CSS
-- Integração de API via Axios
-- Roteamento do lado cliente com React Router
-
-Para executar o frontend localmente (desenvolvimento):
 ```bash
 cd frontend
-npm install
-cp .env.example .env
 npm run dev
 ```
 
-O frontend estará disponível em `http://localhost:5173` e se conecta à API em `http://localhost:8080`.
+Abra `http://localhost:5173` no navegador.
 
-Em produção (via Docker), é servido na porta 3002 como um microserviço, containerizado com Nginx para servir ativos estáticos e roteamento SPA.
+### Exemplo de Uso
 
-Admin keys & API keys
-- Defina a variável de ambiente `ADMIN_API_KEY` para operações de admin (criar chaves de usuário).
-- Crie chaves de API de usuário via `POST /admin/keys` com header `x-api-key: <ADMIN_API_KEY>`.
-- Use chaves de usuário no header `x-api-key` para chamar endpoints protegidos (`/documents`, `/index_docs`, etc.).
+Analisar um contrato:
+```bash
+python examples/demo.py --address 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
+```
 
-CI
-- Um workflow simples do GitHub Actions está incluído em `.github/workflows/ci.yml` que executa testes.
+## Endpoints da API
 
-Endpoints
-- `GET /analyze_contract?address=<0x...>` — retorna heurísticas de risco para o contrato
-- `GET /rag_query?q=texto` — realiza busca sobre o índice (OpenAI embeddings/faiss ou fallback TF-IDF)
-- `POST /index_docs` — *autenticado* (header `x-api-key`) aceita JSON `{ "docs": ["a","b"], "ids": ["id1", "id2"] }` e adiciona ao índice
-- `GET /docs` — *autenticado* lista documentos indexados
+| Método | Endpoint | Descrição | Autenticação Necessária |
+|--------|----------|-----------|-------------------------|
+| GET | `/analyze_contract?address=<addr>` | Análise de risco de contrato | Não |
+| GET | `/rag_query?q=<query>` | Busca RAG | Não |
+| POST | `/index_docs` | Adicionar documentos ao índice | Sim |
+| GET | `/docs` | Listar documentos indexados | Sim |
+| POST | `/admin/keys` | Criar chave de API de usuário | Admin |
+| GET | `/health` | Verificação de saúde | Não |
+
+Autenticação: Use o cabeçalho `x-api-key` com sua chave de API.
+
+## Desenvolvimento
+
+### Executando Testes
+
+```bash
+pytest
+```
+
+### Construindo Frontend para Produção
+
+```bash
+cd frontend
+npm run build
+```
+
+### Qualidade do Código
+
+- Use `black` para formatação Python
+- Use `flake8` para linting
+- Frontend usa ESLint e Prettier
+
+## Contribuição
+
+1. Faça um fork do repositório
+2. Crie uma branch de recurso: `git checkout -b feature/recurso-incrivel`
+3. Faça commit das suas mudanças: `git commit -m 'Adiciona recurso incrível'`
+4. Faça push para a branch: `git push origin feature/recurso-incrivel`
+5. Abra um Pull Request
+
+## Licença
+
+Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
