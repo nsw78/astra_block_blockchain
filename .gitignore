@@ -1,6 +1,31 @@
+# Python
 venv/
-.env
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Data / persistence
 data/
 faiss.index
+*.db
+
+# Environment
+.env
+
+# Testing / Tooling
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+
+# Logs
+*.log

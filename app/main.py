@@ -1,129 +1,120 @@
-from fastapi import FastAPI, HTTPException, Header, Depends
-from starlette.middleware import Middleware
-from app.logging_config import configure_logging
-from app.middleware import rate_limit_middleware, SimpleRateLimiter
-from auth import keys as keystore
-import logging
-from pydantic import BaseModel
-from analyzer.contract_analyzer import analyze_contract
-from embeddings.indexer import build_index_from_texts, Indexer
-import os
+"""
+AstraBlock API — Enterprise-grade application factory.
 
-app = FastAPI(title="AstraBlock API")
-configure_logging()
-logger = logging.getLogger('astra')
+Architecture:
+  app/core/         → config, security, exceptions, logging
+  app/api/v1/       → versioned HTTP endpoints
+  app/services/     → business logic
+  app/repositories/ → data access
+  app/middleware/    → cross-cutting concerns
+  app/models/       → Pydantic schemas
+"""
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-# In-memory example index (in production, persist to disk/S3)
-SAMPLE_TEXTS = [
-    "Uniswap V2 pair contract example",
-    "ERC20 token with mint function and owner control",
-    "Typical rugpull pattern: owner can drain liquidity",
-]
-index: Indexer = build_index_from_texts(SAMPLE_TEXTS)
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-
-ADMIN_API_KEY = os.getenv('ADMIN_API_KEY')
-
-# initialize key DB
-keystore.init_db()
-
-# attach rate limiter to app state in startup event
+from app.core.config import get_settings
+from app.core.logging import configure_logging, get_logger
+from app.api.v1.router import api_router
+from app.middleware.error_handler import register_error_handlers
+from app.middleware.rate_limiter import RateLimitMiddleware, SlidingWindowRateLimiter
+from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.models.schemas import RootResponse
+from app.services.indexer_service import build_default_index
 
 
-@app.on_event('startup')
-async def _startup():
-    # attach a simple in-memory rate limiter (60 req/min)
-    app.state.rate_limiter = SimpleRateLimiter(calls=120, period_seconds=60)
-    logger.info('AstraBlock startup complete')
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle."""
+    settings = get_settings()
+    configure_logging(level=settings.LOG_LEVEL, fmt=settings.LOG_FORMAT)
+    logger = get_logger("main")
+
+    # -- startup --
+    logger.info(
+        "Starting AstraBlock",
+        extra={"extra_data": {"version": settings.APP_VERSION, "env": settings.ENVIRONMENT}},
+    )
+
+    # rate limiter
+    app.state.rate_limiter = SlidingWindowRateLimiter(
+        calls=settings.RATE_LIMIT_CALLS,
+        period=settings.RATE_LIMIT_PERIOD,
+    )
+
+    # vector index
+    app.state.indexer = build_default_index()
+
+    logger.info("AstraBlock startup complete")
+    yield
+    # -- shutdown --
+    logger.info("AstraBlock shutting down")
 
 
-def verify_api_key(x_api_key: str = Header(None)):
-    # Admin key bypass
-    if ADMIN_API_KEY and x_api_key == ADMIN_API_KEY:
-        return True
-    # Otherwise check stored user keys
-    if not x_api_key or not keystore.verify_key(x_api_key):
-        raise HTTPException(status_code=401, detail='invalid api key')
-    return True
+def create_app() -> FastAPI:
+    settings = get_settings()
+
+    app = FastAPI(
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        description=(
+            "Blockchain smart-contract risk analysis & RAG search API. "
+            "Enterprise-grade with versioned endpoints, structured logging, "
+            "rate limiting, and API-key authentication."
+        ),
+        docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+        redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+        openapi_url="/openapi.json" if settings.ENVIRONMENT != "production" else None,
+        lifespan=lifespan,
+    )
+
+    # ── middleware (order matters: outermost runs first) ──
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+        allow_methods=settings.CORS_ALLOW_METHODS,
+        allow_headers=settings.CORS_ALLOW_HEADERS,
+    )
+
+    # ── error handlers ──
+    register_error_handlers(app)
+
+    # ── versioned routes ──
+    app.include_router(api_router)
+
+    # ── favicon ──
+    _static_dir = Path(__file__).resolve().parent / "static"
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def favicon():
+        return FileResponse(
+            str(_static_dir / "favicon.svg"),
+            media_type="image/svg+xml",
+        )
+
+    # ── root ──
+    @app.get("/", response_model=RootResponse, tags=["root"])
+    async def root():
+        return RootResponse(
+            service=settings.APP_NAME,
+            version=settings.APP_VERSION,
+            status="ok",
+            docs="/docs",
+        )
+
+    return app
 
 
-def verify_admin_key(x_api_key: str = Header(None)):
-    if not ADMIN_API_KEY or x_api_key != ADMIN_API_KEY:
-        raise HTTPException(status_code=401, detail='admin api key required')
-    return True
-
-class AnalyzeResponse(BaseModel):
-    address: str
-    source_available: bool
-    analysis: dict
-
-
-@app.get('/analyze_contract', response_model=AnalyzeResponse)
-async def api_analyze_contract(address: str):
-    if not address.startswith('0x'):
-        raise HTTPException(status_code=400, detail='address must start with 0x')
-    res = analyze_contract(address)
-    return res
-
-
-@app.get('/rag_query')
-async def api_rag_query(q: str):
-    res = index.search(q, k=5)
-    return {'query': q, 'results': res}
-
-
-@app.get('/health')
-async def health():
-    return {'status': 'ok'}
-
-
-class IndexDocsRequest(BaseModel):
-    docs: list[str]
-    ids: list[str] | None = None
-
-
-@app.post('/documents')
-async def api_index_docs(req: IndexDocsRequest, _: bool = Depends(verify_api_key)):
-    ids = req.ids
-    index.add_texts(req.docs, ids)
-    return {'indexed': len(req.docs), 'total_docs': len(index.ids)}
-
-
-@app.get('/documents')
-async def api_docs(_: bool = Depends(verify_api_key)):
-    return {'docs': index.ids}
-
-
-class CreateKeyRequest(BaseModel):
-    name: str | None = None
-
-
-@app.post('/admin/keys')
-async def admin_create_key(req: CreateKeyRequest, _: bool = Depends(verify_admin_key)):
-    key = keystore.create_key(req.name)
-    return {'key': key}
-
-
-@app.get('/admin/keys')
-async def admin_list_keys(_: bool = Depends(verify_admin_key)):
-    keys = keystore.list_keys()
-    return {'keys': [{'key': k, 'name': n} for k, n in keys]}
-
-
-@app.delete('/admin/keys/{key}')
-async def admin_delete_key(key: str, _: bool = Depends(verify_admin_key)):
-    ok = keystore.delete_key(key)
-    return {'deleted': ok}
-
-
-@app.get('/')
-async def root():
-    """Root endpoint with basic status and available endpoints."""
-    return {
-        'service': 'AstraBlock',
-        'status': 'ok',
-        'endpoints': {
-            'analyze_contract': '/analyze_contract?address=<0x...>',
-            'rag_query': '/rag_query?q=<text>'
-        }
-    }
+# The ASGI entrypoint used by uvicorn / gunicorn
+app = create_app()

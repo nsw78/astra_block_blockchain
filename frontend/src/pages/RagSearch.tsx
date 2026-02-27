@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { searchRag, RagSearchResult } from '../api/astrablock';
+import { searchRag, type RagSearchResponse } from '../api/astrablock';
 
 const RagSearch: React.FC = () => {
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<RagSearchResult | null>(null);
+  const [result, setResult] = useState<RagSearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -19,7 +19,7 @@ const RagSearch: React.FC = () => {
     try {
       const data = await searchRag(query.trim());
       setResult(data);
-      setSearchHistory(prev => [query.trim(), ...prev.slice(0, 4)]); // Keep last 5
+      setSearchHistory(prev => [query.trim(), ...prev.slice(0, 4)]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -84,7 +84,7 @@ const RagSearch: React.FC = () => {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
           <div className="flex items-center">
-            <span className="mr-2">⚠️</span>
+            <span className="mr-2">!</span>
             {error}
           </div>
         </div>
@@ -108,19 +108,10 @@ const RagSearch: React.FC = () => {
             {result.results.map((item, index) => (
               <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">Result #{index + 1}</h4>
+                  <h4 className="font-medium text-gray-900">Doc: {item.doc_id}</h4>
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    Relevance: High
+                    Score: {item.score.toFixed(4)}
                   </span>
-                </div>
-                <div className="text-gray-700">
-                  {typeof item === 'string' ? (
-                    <p>{item}</p>
-                  ) : (
-                    <pre className="bg-gray-50 p-3 rounded text-sm overflow-x-auto">
-                      {JSON.stringify(item, null, 2)}
-                    </pre>
-                  )}
                 </div>
               </div>
             ))}
@@ -128,7 +119,6 @@ const RagSearch: React.FC = () => {
 
           {result.results.length === 0 && (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">🔍</span>
               <p className="text-gray-600">No results found for your query</p>
               <p className="text-sm text-gray-500 mt-1">Try refining your search terms</p>
             </div>

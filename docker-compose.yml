@@ -1,19 +1,35 @@
-version: '3.8'
 services:
   astra:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrablock-api
     ports:
-      - "8081:8080"
+      - "${API_PORT:-8083}:8080"
     environment:
-      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-changeme}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY}
-      - FAISS_INDEX_PATH=/data/faiss.index
+      - FAISS_INDEX_PATH=/app/data/faiss.index
+      - APIKEY_DB_PATH=/app/data/apikeys.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - RATE_LIMIT_CALLS=${RATE_LIMIT_CALLS:-120}
+      - RATE_LIMIT_PERIOD=${RATE_LIMIT_PERIOD:-60}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["*"]}
     volumes:
-      - ./data:/data
+      - astra-data:/app/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -23,8 +39,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: astrablock-frontend
     ports:
-      - "3002:80"
+      - "${FRONTEND_PORT:-3003}:80"
     depends_on:
-      - astra
+      astra:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  astra-data:
+    driver: local

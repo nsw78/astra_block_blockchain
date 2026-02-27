@@ -1,10 +1,6 @@
-import logging
+"""DEPRECATED — use app.core.logging instead. Kept for backward compat."""
+from app.core.logging import configure_logging as _configure  # noqa: F401
 
 
 def configure_logging():
-    LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s %(message)s'
-    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
-    # reduce verbosity of noisy libs
-    logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
-    logging.getLogger('uvicorn.error').setLevel(logging.WARNING)
-    logging.getLogger('asyncio').setLevel(logging.WARNING)
+    _configure(level="INFO", fmt="text")

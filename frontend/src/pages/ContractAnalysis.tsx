@@ -19,7 +19,7 @@ const ContractAnalysis: React.FC = () => {
     try {
       const data = await analyzeContract(address.trim());
       setResult(data);
-      setAnalysisHistory(prev => [address.trim(), ...prev.slice(0, 4)]); // Keep last 5
+      setAnalysisHistory(prev => [address.trim(), ...prev.slice(0, 4)]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -28,18 +28,21 @@ const ContractAnalysis: React.FC = () => {
   };
 
   const getRiskColor = (score?: number) => {
-    if (!score) return 'text-gray-600';
+    if (score === undefined || score === null) return 'text-gray-600';
     if (score < 30) return 'text-green-600';
     if (score < 70) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const getRiskLevel = (score?: number) => {
-    if (!score) return 'Unknown';
+    if (score === undefined || score === null) return 'Unknown';
     if (score < 30) return 'Low';
     if (score < 70) return 'Medium';
     return 'High';
   };
+
+  const riskScore = result?.analysis?.score ?? 0;
+  const findings = result?.analysis?.findings ?? [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -98,7 +101,7 @@ const ContractAnalysis: React.FC = () => {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
           <div className="flex items-center">
-            <span className="mr-2">⚠️</span>
+            <span className="mr-2">!</span>
             {error}
           </div>
         </div>
@@ -110,46 +113,57 @@ const ContractAnalysis: React.FC = () => {
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Risk Assessment</h2>
             <div className="text-center">
-              <div className={`text-4xl font-bold ${getRiskColor(result.risk_score)} mb-2`}>
-                {result.risk_score || 0}%
+              <div className={`text-4xl font-bold ${getRiskColor(riskScore)} mb-2`}>
+                {riskScore}%
               </div>
-              <div className={`text-lg font-medium ${getRiskColor(result.risk_score)}`}>
-                {getRiskLevel(result.risk_score)} Risk
+              <div className={`text-lg font-medium ${getRiskColor(riskScore)}`}>
+                {getRiskLevel(riskScore)} Risk
               </div>
             </div>
             <div className="mt-4 space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Security Score</span>
-                <span className="text-sm font-medium">{100 - (result.risk_score || 0)}%</span>
+                <span className="text-sm font-medium">{100 - riskScore}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${100 - (result.risk_score || 0)}%` }}
+                  style={{ width: `${100 - riskScore}%` }}
                 ></div>
               </div>
             </div>
+            {!result.source_available && (
+              <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+                Source code not available on Etherscan
+              </div>
+            )}
           </div>
 
-          {/* Issues */}
+          {/* Findings */}
           <div className="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Analysis Details</h2>
-            {result.issues && result.issues.length > 0 ? (
+            {findings.length > 0 ? (
               <div className="space-y-3">
-                {result.issues.map((issue, index) => (
+                {findings.map((finding, index) => (
                   <div key={index} className="flex items-start p-3 bg-red-50 border border-red-200 rounded-md">
-                    <span className="text-red-500 mr-3 mt-0.5">⚠️</span>
+                    <span className="text-red-500 mr-3 mt-0.5">!</span>
                     <div>
-                      <p className="text-red-800 font-medium">Issue #{index + 1}</p>
-                      <p className="text-red-700 text-sm">{issue}</p>
+                      <p className="text-red-800 font-medium">Pattern: {finding.pattern}</p>
+                      <p className="text-red-700 text-sm font-mono">{finding.snippet}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8">
-                <span className="text-4xl mb-2 block">✅</span>
+                <span className="text-4xl mb-2 block">OK</span>
                 <p className="text-gray-600">No critical issues found</p>
+              </div>
+            )}
+
+            {result.analysis?.error && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+                {result.analysis.error}
               </div>
             )}
 
